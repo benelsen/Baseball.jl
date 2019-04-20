@@ -3,6 +3,10 @@ uuid = "da1d15c4-167d-11e9-00bf-65d6939ba3f1"
 authors = ["Ben Elsen <mail@benelsen.com>"]
 version = "0.0.0"
 
+[deps]
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+TimeZones = "f269a46b-ccf7-5d73-abea-4c690281aa53"
+
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
