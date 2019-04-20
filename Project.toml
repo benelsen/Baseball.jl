@@ -1,7 +1,7 @@
 name = "Baseball"
 uuid = "da1d15c4-167d-11e9-00bf-65d6939ba3f1"
 authors = ["Ben Elsen <mail@benelsen.com>"]
-version = "0.1.0"
+version = "0.0.0"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
