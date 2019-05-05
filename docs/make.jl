@@ -2,7 +2,9 @@ using Documenter, Baseball
 
 makedocs(;
     modules=[Baseball],
-    format=Documenter.HTML(),
+    format=Documenter.HTML(
+        prettyurls = get(ENV, "CI", nothing) == "true"
+    ),
     pages=[
         "Home" => "index.md",
     ],

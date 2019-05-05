@@ -1,2 +1,3 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+Baseball = "da1d15c4-167d-11e9-00bf-65d6939ba3f1"
