@@ -36,64 +36,75 @@ function fetch_game_file(date::TimeType, home_team_code::AbstractString, away_te
 end
 
 game_types = [
+    :status_indicator => String,
+    :status => String,
+    :id => String,
     :game_pk => Int64,
-    :game_type => Char,
-    :stats_season => Int64,
-    :time_date => ZonedDateTime,
-    :time => Time,
-    :ampm => String,
+    :game_type => String,
+    :stats_season => Union{Missing, Int64},
+
     :time_zone => String,
-    :original_date => Date,
+    :time_date => Union{Missing, ZonedDateTime},
+    :original_date => Union{Missing, Date},
+    :time => Union{Missing, Time},
+    :ampm => String,
+
+    :resume_time_date => Union{Missing, ZonedDateTime},
     :resume_date => Union{Missing, Date},
+    :resume_time => Union{Missing, Time},
+    :resume_ampm => Union{Missing, String},
+
     :description => Union{Missing, String},
-    :location => String,
+    :location => Union{Missing, String},
     :venue => String,
     :venue_id => Int64,
     :venue_w_chan_loc => Union{Missing, String},
     :league => String,
     :away_code => String,
+    :away_file_code => String,
     :away_division => Union{Missing, String},
-    :away_league_id => String,
+    :away_league_id => Union{Missing, Int64},
     :away_name_abbrev => String,
     :away_sport_code => String,
-    :away_team_id => String,
+    :away_team_id => Int64,
     :away_team_name => String,
+    :away_team_city => String,
     :home_code => String,
+    :home_file_code => String,
     :home_division => Union{Missing, String},
-    :home_league_id => String,
+    :home_league_id => Union{Missing, Int64},
     :home_name_abbrev => String,
     :home_sport_code => String,
-    :home_team_id => String,
+    :home_team_id => Int64,
     :home_team_name => String,
-    :double_header_sw => Char,
-    :game_nbr => Int64,
+    :home_team_city => String,
+    :double_header_sw => Union{Missing, Bool},
+    :game_nbr => Union{Missing, Int64},
     :scheduled_innings => Int64,
-    :series => String,
+    :series => Union{Missing, String},
     :ser_games => Union{Missing, Int64},
     :ser_home_nbr => Union{Missing, Int64},
     :series_num => Union{Missing, Int64},
-    :tbd_flag => Char,
-    :tiebreaker_sw => Char,
-    :game_data_directory => String,
-    :ind => Char,
-    :status => String
+    :tbd_flag => Union{Missing, Bool},
+    :tiebreaker_sw => Union{Missing, Bool},
+    :game_data_directory => Union{Missing, String}
 ]
 
 function get_games(date::TimeType = today())
     doc = fetch_game_file(date, "master_scoreboard")
+
+    games_year = findfirst("/games/@year", doc).content
 
     games = map(findall("/games/game", doc)) do game
 
         status_node = findfirst("status", game)
 
         ks = first.(game_types)
-        vals = map(ks[1:(end-2)]) do key
+        vals = map(ks[3:end]) do key
             key_str = string(key)
             haskey(game, key_str) ? game[key_str] : missing
         end
-
-        push!(vals, status_node["ind"])
-        push!(vals, status_node["status"])
+        prepend!(vals, [status_node["ind"], status_node["status"]])
 
         NamedTuple{(ks...,)}(vals)
     end
@@ -105,31 +116,78 @@ function get_games(date::TimeType = today())
         for name in names(d)
             i = findfirst(isequal(name), first.(game_types))
             T = last(game_types[i])
-            @info (T, name)
-            if T === Char || T === Union{Missing, Char}
+
+            if name === :stats_season
+                d[name] = map(eachrow(d)) do r
+                    if ismissing(r[:stats_season]) || isempty(r[:stats_season])
+                        games_year
+                    else
+                        r[:stats_season]
+                    end
+                end
+            end
+
+            if name == :time_date
+                d[name] = map(eachrow(d)) do r
+                    if ismissing(r[:time_date]) || isempty(r[:time_date])
+                        if ismissing(r[:time]) || ismissing(r[:original_date])
+                            return missing
+                        end
+                        r[:time_date] = r[:original_date] * " " * r[:time]
+                    end
+                    create_time(r[:time_date], r[:ampm], tz"America/New_York")
+                end
+
+            elseif name == :resume_time_date
+                d[name] = map(eachrow(d)) do r
+                    if ismissing(r[:resume_time_date]) || isempty(r[:resume_time_date])
+                        if ismissing(r[:resume_time]) || ismissing(r[:resume_date])
+                            return missing
+                        end
+                        r[:resume_time_date] = r[:resume_date] * " " * r[:resume_time]
+                    end
+                    create_time(r[:resume_time_date], r[:resume_ampm], tz"America/New_York")
+                end
+
+            elseif T === Char || T === Union{Missing, Char}
                 d[name] = getindex.(d[name], 1)
+
+            elseif T === Bool
+                d[name] = isequal.(Ref("Y"), d[name])
+
+            elseif T === Union{Missing, Bool}
+                d[name] = map(d[name]) do e
+                    ismissing(e) ? missing : isequal("Y", e)
+                end
 
             elseif T <: Real
                 d[name] = parse.(Ref(T), d[name])
 
             elseif T <: Union{Missing, Real}
-                d[name] = convert(Vector{T}, map(e -> isempty(e) ? missing : parse.(Ref(get_union_type_2(T)), e), d[name]))
-
-            elseif T === ZonedDateTime || T === Union{Missing, ZonedDateTime}
-                d[name] = create_time.(d[name], d[:ampm], tz"America/New_York")
+                d[name] = map(e -> ismissing(e) || isempty(e) ? missing : parse.(Ref(get_union_type_2(T)), e), d[name])
 
             elseif T === Time || T === Union{Missing, Time}
-                d[name] = Time.(d[name])
+                d[name] = map(d[name]) do e
+                    try
+                        Time(e)
+                    catch
+                        missing
+                    end
+                end
 
             elseif T === Date || T === Union{Missing, Date}
-                d[name] = convert(Vector{T}, map(e -> isempty(e) ? missing : Date(e, dateformat"yyyy/mm/dd"), d[name]))
+                d[name] = map(e -> ismissing(e) || isempty(e) ? missing : Date(e, dateformat"yyyy/mm/dd"), d[name])
 
             elseif T === String || T === Union{Missing, String}
-                d[name] = convert(Vector{T}, ifelse.(isempty.(d[name]), missing, d[name]))
+                d[name] = map(e -> ismissing(e) || isempty(e) ? missing : e, d[name])
+
             else
-                # d[name] = convert.(Ref(T), d[name])
+                error("$(name) $(T) not implemented")
             end
+
+            d[name] = convert(Vector{T}, d[name])
         end
+
         return d
     end
 end
