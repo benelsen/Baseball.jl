@@ -55,10 +55,9 @@ function statcast_search(query::AbstractDict)
 
     data = CSV.read(
         io,
-        allowmissing = :all,
-        missingstrings = ["null"],
-        categorical = false,
+        missingstrings = ["", "null"],
         types = savant_types,
+        silencewarnings = false
     )
 
     if :error ∈ names(data)
@@ -67,9 +66,6 @@ function statcast_search(query::AbstractDict)
 
     # Delete deprecated columns? Are they always empty?
     # deletecols!(data, [:spin_dir, :spin_rate_deprecated, :break_angle_deprecated, :break_length_deprecated, :tfs_deprecated, :tfs_zulu_deprecated])
-
-    # These columns should not have any missings
-    disallowmissing!(data, [:game_date, :game_pk, :at_bat_number])
 
     # Baseball Savant's Statcast Search seems to truncate at 40000 rows. Better warn the user.
     if size(data, 1) === 40000
